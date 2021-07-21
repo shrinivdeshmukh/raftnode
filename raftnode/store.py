@@ -4,8 +4,6 @@ from threading import Lock, Thread
 
 from raftnode import cfg, logger
 from raftnode.datastore.memory import MemoryStore
-from raftnode.datastore.rocks import RockStore
-
 
 class Store:
 
@@ -27,6 +25,7 @@ class Store:
         :type store_type: str
         '''
         if store_type == 'database':
+            from raftnode.datastore.rocks import RockStore
             database = kwargs.get('database', None)
             data_dir = kwargs.get('data_dir', None)
             db = RockStore(database=database, data_dir=data_dir)

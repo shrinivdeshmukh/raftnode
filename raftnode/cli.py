@@ -25,6 +25,8 @@ def main():
 
     if args.peers:
         peers = args.peers.split(',')
+    else:
+        peers = list()
 
     node = Node(my_ip=args.ip, peers=peers, timeout=args.timeout, store_type=args.store, database=args.database, data_dir=args.volume)
     node.run()
