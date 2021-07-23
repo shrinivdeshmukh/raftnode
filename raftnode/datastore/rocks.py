@@ -12,10 +12,6 @@ class RockStore(IDatastore):
     A class that implements IDatastore. It enables storing the data
     into a database called rocksdb in (key, value) format
 
-    :param database: name of the database; database will be created
-                    if it doesn't exist, default=defaiult.db
-    :type database: str
-
     :param data_dir: directory where the database files will be stored,
                     default=./data
     :type data_dir: dict
@@ -23,21 +19,24 @@ class RockStore(IDatastore):
     :param config: rocksdb specific configurations
     :type config: dict
     '''
-    def __init__(self, database: str = 'default.db', data_dir: str = 'data', config: dict = None):
+    def __init__(self, data_dir: str = 'data', config: dict = None):
         if not config:
             config = dict()
         self.__data_dir = getenv('DATA_DIR', path.join('.', data_dir))
         self.__check_data_dir()
         self.__config = rocksdb.Options()
         self.__set_config(config=config)
-        self.__database = path.join(self.data_dir, database)
 
     @property
     def database(self):
         '''
         rocksdb database name
         '''
-        return self.__database
+        return self.__namespace
+
+    @database.setter
+    def database(self, namespace: str):
+        self.__namespace = path.join(self.data_dir, namespace)
 
     @property
     def data_dir(self):
@@ -81,7 +80,7 @@ class RockStore(IDatastore):
         db = rocksdb.DB(self.database, self.__config)
         return db
 
-    def put(self, key: str, value):
+    def put(self, key: str, value, namespace: str):
         '''
         insert values into rocksdb database
 
@@ -91,9 +90,13 @@ class RockStore(IDatastore):
         :param value: value to be inserted into
                     the database
         :type value: any
+
+        :param namespace: namespace to which the key belongs
+        :type namespace: str
         '''
         db = None
         try:
+            self.database = namespace
             db = self.connect()
             key, value = self.__bytes_encode(key), self.__bytes_encode(value)
             db.put(key, value)
@@ -102,7 +105,7 @@ class RockStore(IDatastore):
         finally:
             db = None
 
-    def get(self, key: str) -> dict:
+    def get(self, key: str, namespace: str) -> dict:
         '''
         retrieve data from database and return it 
         to the client
@@ -111,11 +114,17 @@ class RockStore(IDatastore):
                     the database
         :type key: str
 
+        :param namespace: namespace to which the key belongs
+        :type namespace: str
+
         :returns: data from the database in dictionary format
         :rtype: dict 
         '''
         db = None
         try:
+            self.database = namespace
+            if not path.exists(self.database):
+                return None
             db = self.connect()
             key = self.__bytes_encode(key)
             value = db.get(key)

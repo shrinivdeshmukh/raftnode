@@ -18,7 +18,7 @@ class MemoryStore(IDatastore):
         '''
         return self.__db
 
-    def put(self, key: str, value):
+    def put(self, key: str, value, **kwargs):
         '''
         insert values into the in-memory datastore
 
@@ -35,7 +35,7 @@ class MemoryStore(IDatastore):
         except Exception as e:
             raise e
 
-    def get(self, key: str) -> dict:
+    def get(self, key: str, **kwargs) -> dict:
         '''
         fetch data form the in-memory datastore
 

@@ -24,7 +24,7 @@ class RaftNode(Transport):
         logger.info('adding peers')
         self.start_adding_peers(peers=self.__peers)
         logger.info('initializing timeout')
-        self.start_timeout()
+        # self.start_timeout()
 
     def start_transport(self):
         '''

@@ -7,11 +7,11 @@ from raftnode.datastore.memory import MemoryStore
 
 class Store:
 
-    def __init__(self, store_type: str = 'memory', database: str = 'default.db', data_dir: str = 'data'):
+    def __init__(self, store_type: str = 'memory', data_dir: str = 'data'):
         self.commit_id = 0
         self.log = list()
         self.staged = None
-        self.db = self.__get_database(store_type, database=database, data_dir=data_dir)
+        self.db = self.__get_database(store_type, data_dir=data_dir)
         self.__lock = Lock()
         self.__data_dir = getenv('DATA_DIR', './data')
         self.__log_file = getenv('LOG_FILENAME', 'append.log')
@@ -28,7 +28,7 @@ class Store:
             from raftnode.datastore.rocks import RockStore
             database = kwargs.get('database', None)
             data_dir = kwargs.get('data_dir', None)
-            db = RockStore(database=database, data_dir=data_dir)
+            db = RockStore(data_dir=data_dir)
         else:
             db = MemoryStore()
         return db
@@ -45,9 +45,10 @@ class Store:
         if action == 'log':
             self.staged = payload
         elif action == 'commit':
+            namespace = payload.get('namespace', 'default')
             if not self.staged:
                 self.staged = payload
-            self.commit()
+            self.commit(namespace)
         return
 
     def put(self, term: int, payload: dict, transport, majority: int) -> bool:
@@ -69,6 +70,7 @@ class Store:
         :param majority: how many nodes constitute the majority
         :type majority: int
         '''
+        namespace = payload.get('namespace', 'default')
         with self.__lock:
             self.staged = payload
             waited = 0
@@ -84,8 +86,8 @@ class Store:
                 log_message, transport, log_confirmations,)).start()
 
             while sum(log_confirmations) + 1 < majority:
-                waited += 0.0005
-                time.sleep(0.0005)
+                waited += 0.05
+                time.sleep(0.05)
                 if waited > cfg.MAX_LOG_WAIT / 1000:
                     logger.info(
                         f"waited {cfg.MAX_LOG_WAIT} ms, update rejected:")
@@ -98,7 +100,7 @@ class Store:
                 "action": "commit",
                 "commit_id": self.commit_id
             }
-        self.commit()
+        self.commit(namespace)
         Thread(target=self.send_data,
                args=(commit_message, transport,)).start()
         logger.info(
@@ -133,12 +135,13 @@ class Store:
                         data needs to be retrieved from the database
         :type payload: dict 
         '''
+        namespace = payload.get('namespace', 'default')
         key = payload["key"]
-        value = self.db.get(key=key)
+        value = self.db.get(key=key, namespace=namespace)
         payload.update({'value': value})
         return payload
 
-    def commit(self):
+    def commit(self, namespace: str):
         '''
         commit the message to the database after getting
         atleast `majority + 1` conrfirmations from the 
@@ -150,4 +153,4 @@ class Store:
             key = self.staged['key']
             value = self.staged['value']
             self.staged = None
-            self.db.put(key, value)
+            self.db.put(key, value, namespace=namespace)

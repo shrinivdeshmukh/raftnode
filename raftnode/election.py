@@ -14,7 +14,7 @@ class Election:
         self.vote_count = 0
         self.store = store
         self.__transport = transport
-        # self.init_timeout()
+        self.init_timeout()
 
     def start_election(self):
         '''
