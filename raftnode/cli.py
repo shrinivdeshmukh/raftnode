@@ -9,16 +9,16 @@ def main():
     """Console script for raftnode."""
     parser = argparse.ArgumentParser(
         formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument('-s', '--store', help=str(render_help('this option specifies the data storage layer; memory is the default') + '\n' + str(render_examples('DEFAULT: memory')) + '\n' + str(render_examples('EXAMPLE: --store memory'))),
-                        choices=('memory', 'database'), default='memory')
+    parser.add_argument('-d', '--database', help=str(render_help('If True, the data will be stored in a persistent rocksdb database; otherwise, the data will be stored in an in-memory python dictionary.') + '\n' + str(render_examples('Default: False'))),
+                        action="store_true", default=False)
     parser.add_argument(
-        '--ip', help=str(render_help("IP address of this machine;")) + '\n' + str(render_examples("FORMAT: IP:PORT")) + '\n' + str(render_examples("EXAMPLE: 192.168.0.101:5000")), required=True)
+        '--ip', help=str(render_help("IP address of this machine;")) + '\n' + str(render_examples("Format: IP:PORT")) + '\n' + str(render_examples("Example: 192.168.0.101:5000")), required=True)
     parser.add_argument(
-        '--peers', help=str(render_help('comma separated IP addresses of other nodes in the cluster')) + '\n' + str(render_examples('FORMAT: IP1:PORT1,IP3:PORT3...,IPn:PORTn')) + '\n' + str(render_examples('EXAMPLE: --peers 192.168.0.101:5000,192.168.0.102:5000,192.168.0.103:5000')), default=None)
-    parser.add_argument('-t', '--timeout', help=str(render_help('if peers are given, this timeout number is the interval after which all peers will get a ping; if peers do not answer, they will be removed from this node.')
-                                                    ) + '\n' + str(render_examples('DEFAULT: 1')) + '\n' + str(render_examples('EXAMPLE --timeout 0.5')), default=1)
+        '--peers', help=str(render_help('comma separated IP addresses of other nodes in the cluster')) + '\n' + str(render_examples('Format: IP1:PORT1,IP3:PORT3...,IPn:PORTn')) + '\n' + str(render_examples('Example: --peers 192.168.0.101:5000,192.168.0.102:5000,192.168.0.103:5000')), default=None)
+    parser.add_argument('-t', '--timeout', help=str(render_help('if peers are given, this timeout number is the interval (in seconds) after which all peers will get a ping; if peers do not answer, they will be removed from this node.')
+                                                    ) + '\n' + str(render_examples('Default: 1')) + '\n' + str(render_examples('Example --timeout 0.5')), default=1)
     parser.add_argument(
-        '-v', '--volume', help=str(render_help('the database files will be kept in this directory.')) + '\n' + str(render_examples('DEFAULT: ./data')) + '\n' + str(render_examples('EXAMPLE: --volume ./data')), default='data')
+        '-v', '--volume', help=str(render_help('the database files will be kept in this directory.')) + '\n' + str(render_examples('Default: ./data')) + '\n' + str(render_examples('Example: --volume ./data')), default='data')
     args = parser.parse_args()
 
     if args.peers:
@@ -26,9 +26,26 @@ def main():
     else:
         peers = list()
 
-    node = Node(my_ip=args.ip, peers=peers, timeout=args.timeout, store_type=args.store, data_dir=args.volume)
+    if args.database:
+        store_type = 'database'
+
+    node = Node(my_ip=args.ip, peers=peers, timeout=args.timeout, store_type=store_type, data_dir=args.volume)
     node.run()
 
+def doc_argparse():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument('-d', '--database', help='If True, the data will be stored in a persistent rocksdb database; otherwise, the data will be stored in an in-memory python dictionary. \n Example: ``--database``', 
+                        action="store_true", default=False)
+    parser.add_argument(
+        '--ip', help='IP address of this machine; \n Example: ``--ip 192.168.0.101:5000``', required=True)
+    parser.add_argument(
+        '--peers', help='Comma separated IP addresses of other nodes in the cluster \n Example: ``--peers 192.168.0.101:5000,192.168.0.102:5000,192.168.0.103:5000``', default=None)
+    parser.add_argument('-t', '--timeout', help='If peers are given, this timeout number is the interval (in seconds) after which all peers will get a ping; if peers do not answer, they will be removed from this node.'
+                        + '\n Example ``--timeout 0.5``', default=1)
+    parser.add_argument(
+        '-v', '--volume', help='The database files will be kept in this directory. \n Example: ``--volume ./data``', default='data')
+    return parser
 
 def render_help(msg: str):
     msg = bold(magenta(msg))

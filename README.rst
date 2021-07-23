@@ -18,7 +18,13 @@ RAFT consensus algorithm implementation
 * Free software: MIT license
 * Documentation: https://raftnode.readthedocs.io.
 
+What is raftnode?
+-----------------
 
+`raftnode` is a fault tolerant distributed metastore based on RAFT consensus algorithm. It supports storing data in-memory
+and storing data in rocksdb_ database
+
+.. _rocksdb: https://rocksdb.org/
 
 Installation
 ------------
@@ -50,11 +56,15 @@ Basic Usage
 
 .. code-block:: console
 
-        raftnode --ip <MY_IP:MY_PORT> --peers <PEER1:PORT1>,<PEER2:PORT2>,...,<PEERn:PORTn> --store database --database <DATABASE_NAME> --volume <DIRECTORY TO STORE THE DATABASE>
+        raftnode --ip <MY_IP:MY_PORT> --peers <PEER1:PORT1>,<PEER2:PORT2>,...,<PEERn:PORTn> --store database --volume <DIRECTORY TO STORE THE DATABASE>
 
-**For detailed usage, click** here_ 
+**For detailed command line reference, click** `cli usage`_
 
-.. _here: https://raftnode.readthedocs.io/en/latest/usage.html
+.. _`cli usage`: https://raftnode.readthedocs.io/en/latest/cli.html
+
+**For detailed usage, click** `client usage`_
+
+.. _`client usage`: https://raftnode.readthedocs.io/en/latest/usage.html
 
 For more detailed CLI instructions:
 ===================================

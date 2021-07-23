@@ -7,6 +7,7 @@ Welcome to raftnode's documentation!
 
    readme
    installation
+   cli
    usage
    modules
    contributing
