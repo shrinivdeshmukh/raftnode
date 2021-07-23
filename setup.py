@@ -10,7 +10,7 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = ['fabulous==0.4.0' ,'sphinx-argparse==0.2.5']
+requirements = ['fabulous==0.4.0']
 
 test_requirements = [ ]
 
