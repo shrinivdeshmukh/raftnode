@@ -8,7 +8,22 @@ from raftnode.datastore.Idatastore import IDatastore
 
 class RockStore(IDatastore):
 
-    def __init__(self, database: str = 'default', data_dir: str = 'data', config: dict = None):
+    '''
+    A class that implements IDatastore. It enables storing the data
+    into a database called rocksdb in (key, value) format
+
+    :param database: name of the database; database will be created
+                    if it doesn't exist, default=defaiult.db
+    :type database: str
+
+    :param data_dir: directory where the database files will be stored,
+                    default=./data
+    :type data_dir: dict
+
+    :param config: rocksdb specific configurations
+    :type config: dict
+    '''
+    def __init__(self, database: str = 'default.db', data_dir: str = 'data', config: dict = None):
         if not config:
             config = dict()
         self.__data_dir = getenv('DATA_DIR', path.join('.', data_dir))
@@ -19,14 +34,23 @@ class RockStore(IDatastore):
 
     @property
     def database(self):
+        '''
+        rocksdb database name
+        '''
         return self.__database
 
     @property
     def data_dir(self):
+        '''
+        database files storage directory
+        '''
         return self.__data_dir
 
     @property
     def encoding(self):
+        '''
+        bytes encoding property
+        '''
         return 'utf-8'
 
     def __check_data_dir(self):
@@ -38,7 +62,6 @@ class RockStore(IDatastore):
         self.__config.max_open_files = config.get('max_open_files', 300000)
         self.__config.max_background_flushes = config.get(
             'allow_concurrent_memtable_write', 100)
-        # self.__config.enable_write_thread_adaptive_yield = config.get('enable_write_thread_adaptive_yield', True)
         self.__config.write_buffer_size = config.get(
             'write_buffer_size', 67108864)
         self.__config.max_write_buffer_number = config.get(
@@ -52,10 +75,23 @@ class RockStore(IDatastore):
             block_cache_compressed=rocksdb.LRUCache(500 * (1024 ** 2)))
 
     def connect(self):
+        '''
+        create/connect to rocksdb database
+        '''
         db = rocksdb.DB(self.database, self.__config)
         return db
 
     def put(self, key: str, value):
+        '''
+        insert values into rocksdb database
+
+        :param key: name of the key
+        :type key: str
+
+        :param value: value to be inserted into
+                    the database
+        :type value: any
+        '''
         db = None
         try:
             db = self.connect()
@@ -66,7 +102,18 @@ class RockStore(IDatastore):
         finally:
             db = None
 
-    def get(self, key: str):
+    def get(self, key: str) -> dict:
+        '''
+        retrieve data from database and return it 
+        to the client
+
+        :param key: key using which data will be retrieved from 
+                    the database
+        :type key: str
+
+        :returns: data from the database in dictionary format
+        :rtype: dict 
+        '''
         db = None
         try:
             db = self.connect()

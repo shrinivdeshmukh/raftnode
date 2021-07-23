@@ -6,9 +6,6 @@ raftnode
 .. image:: https://img.shields.io/pypi/v/raftnode.svg
         :target: https://pypi.python.org/pypi/raftnode
 
-.. image:: https://img.shields.io/travis/shrinivdeshmukh/raftnode.svg
-        :target: https://travis-ci.com/shrinivdeshmukh/raftnode
-
 .. image:: https://readthedocs.org/projects/raftnode/badge/?version=latest
         :target: https://raftnode.readthedocs.io/en/latest/?version=latest
         :alt: Documentation Status
@@ -54,6 +51,10 @@ Basic Usage
 .. code-block:: console
 
         raftnode --ip <MY_IP:MY_PORT> --peers <PEER1:PORT1>,<PEER2:PORT2>,...,<PEERn:PORTn> --store database --database <DATABASE_NAME> --volume <DIRECTORY TO STORE THE DATABASE>
+
+**For detailed usage, click** here_ 
+
+.. _here: https://raftnode.readthedocs.io/en/latest/usage.html
 
 For more detailed CLI instructions:
 ===================================

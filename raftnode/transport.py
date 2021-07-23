@@ -121,7 +121,7 @@ class Transport:
             else:
                 send_msg = 'hey there; from {}'.format(self.addr)
                 client.send(bytes(self.addr, encoding='utf-8'))
-        client.close()
+            client.close()
 
     def redirect_to_leader(self, message: dict):
         '''
@@ -217,7 +217,9 @@ class Transport:
                 logger.info(f'Removing peer {addr} from list of peers')
                 with self.lock:
                     self.peers.remove(addr)
+                client.close()
             except Exception as e:
+                client.close()
                 raise e
             finally:
                 i += 1

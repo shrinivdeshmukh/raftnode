@@ -16,6 +16,9 @@ class RaftNode(Transport):
         self.__peers = peers
 
     def run(self):
+        '''
+        start the server, add peers and election timer
+        '''
         logger.info('starting transport')
         self.start_transport()
         logger.info('adding peers')
@@ -24,13 +27,23 @@ class RaftNode(Transport):
         self.start_timeout()
 
     def start_transport(self):
+        '''
+        start the socket server for this node
+        '''
         Thread(target=self.__transport.serve, args=(self.__election,)).start()
 
     def start_adding_peers(self, peers):
+        '''
+        if peers are specified at the runtime, add them to
+        the list of peers
+        '''
         if peers:
             for peer in peers:
                 Thread(target=self.__transport.req_add_peer,
                        args=(peer,)).start()
 
     def start_timeout(self):
+        '''
+        start the election timer
+        '''
         self.__election.init_timeout()

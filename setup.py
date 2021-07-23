@@ -10,7 +10,7 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = [ ]
+requirements = ['fabulous==0.4.0']
 
 test_requirements = [ ]
 
@@ -35,6 +35,9 @@ setup(
         ],
     },
     install_requires=requirements,
+    extras_require={
+        'rocksdb': ['rocksdb==0.7.0'],
+    },
     license="MIT license",
     long_description=readme + '\n\n' + history,
     include_package_data=True,
