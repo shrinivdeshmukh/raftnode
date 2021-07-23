@@ -33,8 +33,8 @@ If no namespace is specified, the `default` namespace will be used.
 
 In the following section, you'll find an example of how to create a namespace, add data to it, and retrieve data from it.
 
-Client Implementation example
------------------------------
+Example: client implementation
+------------------------------
 
 *raftnode* enables you to write your own client. It uses simple internet sockets to interact with the node. The IP and PORT on which we start the node is the address where each node is listening.
 As long as your client supports sockets, you're good to go! Here is an example of client implementation using python fastAPI:
