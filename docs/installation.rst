@@ -14,6 +14,15 @@ To install raftnode, run this command in your terminal:
 
     $ pip install raftnode
 
+This will install the vanilla version of raftnode. The database shall be in-memory without persistent storage. The data will be lost after the node is killed, and shall be restored by other nodes when restarted.
+
+.. code-block:: console
+
+    $ pip install raftnode[rocksdb]
+
+This will install the roskcdb version of raftnode. All the data will be persisted in rocksdb database.
+
+
 This is the preferred method to install raftnode, as it will always install the most recent stable release.
 
 If you don't have `pip`_ installed, this `Python installation guide`_ can guide

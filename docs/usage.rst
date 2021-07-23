@@ -17,8 +17,8 @@ Start the RAFT cluster
 
         raftnode --ip <MY_IP:MY_PORT> --peers <PEER1:PORT1>,<PEER2:PORT2>,...,<PEERn:PORTn> --store database --database <DATABASE_NAME> --volume <DIRECTORY TO STORE THE DATABASE>
 
-*raftnode* enables you to write your own client. It uses a simple internet sockets to interact with the node. The IP and PORT on which we start the nodes is the address where each node is listening.
-As long as your client supports sockets, you're good to go! Here is an example client implementation using python fastAPI:
+*raftnode* enables you to write your own client. It uses simple internet sockets to interact with the node. The IP and PORT on which we start the node is the address where each node is listening.
+As long as your client supports sockets, you're good to go! Here is an example of client implementation using python fastAPI:
 
 Let's install FastAPI and uvicorn first
 
