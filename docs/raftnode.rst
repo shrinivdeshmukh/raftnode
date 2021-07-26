@@ -12,21 +12,7 @@ Subpackages
 Submodules
 ----------
 
-raftnode.cli module
--------------------
 
-.. automodule:: raftnode.cli
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-raftnode.config module
-----------------------
-
-.. automodule:: raftnode.config
-   :members:
-   :undoc-members:
-   :show-inheritance:
 
 raftnode.election module
 ------------------------
