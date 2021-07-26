@@ -25,7 +25,7 @@ Named Arguments
 
     If set, the data will be stored in a persistent rocksdb database; otherwise, the data will be stored in an in-memory python dictionary
 
-    Default: False
+    Default: ``False``
 
 **-v, -\-volume,** ``optional``
 
