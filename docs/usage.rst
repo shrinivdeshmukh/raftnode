@@ -25,11 +25,13 @@ You can create multiple namespaces, each containing a distinct set of configurat
 In a microservices architecture, for example, we can have two namespaces: one for storing information about each microservice, 
 such as its IP and PORT, and another for storing database credentials for databases used by the services.
 
-Creating namespaces in raftnode cluster is simple. `{'type': 'put', 'key': <YOUR_KEY>, 'value': <YOUR_VALUE>'}` is the general message format for putting data into the raftnode. 
-The message format for creating a new namespace is `{'type':'put', 'key': <YOUR_KEY>, 'value': <YOUR_VALUE>, 'namespace': NAMESPACE NAME>}`. 
+Creating namespaces in raftnode cluster is simple. ``{'type': 'put', 'key': <YOUR_KEY>, 'value': <YOUR_VALUE>'}`` is the general message format for putting data into the raftnode. 
+
+The message format for creating a new namespace is ``{'type':'put', 'key': <YOUR_KEY>, 'value': <YOUR_VALUE>, 'namespace': NAMESPACE NAME>}``. 
+
 The namespace will be created on the fly if it does not already exist!
 
-If no namespace is specified, the `default` namespace will be used.
+If no namespace is specified, the ``default`` namespace will be used.
 
 In the following section, you'll find an example of how to create a namespace, add data to it, and retrieve data from it.
 
