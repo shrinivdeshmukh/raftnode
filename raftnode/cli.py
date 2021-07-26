@@ -21,6 +21,8 @@ def main():
         '-v', '--volume', help=str(render_help('the database files will be kept in this directory.')) + '\n' + str(render_examples('Default: ./data')) + '\n' + str(render_examples('Example: --volume ./data')), default='data')
     args = parser.parse_args()
 
+    store_type = 'memory'
+    
     if args.peers:
         peers = args.peers.split(',')
     else:
@@ -28,6 +30,7 @@ def main():
 
     if args.database:
         store_type = 'database'
+        
 
     node = Node(my_ip=args.ip, peers=peers, timeout=args.timeout, store_type=store_type, data_dir=args.volume)
     node.run()
