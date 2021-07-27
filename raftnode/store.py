@@ -46,9 +46,11 @@ class Store:
             self.staged = payload
         elif action == 'commit':
             namespace = payload.get('namespace', 'default')
+            delete = payload.get('delete', False)
+            print("PAYLOAD", payload, delete)
             if not self.staged:
                 self.staged = payload
-            self.commit(namespace)
+            self.commit(namespace, delete)
         return
 
     def put(self, term: int, payload: dict, transport, majority: int) -> bool:
@@ -141,16 +143,60 @@ class Store:
         payload.update({'value': value})
         return payload
 
-    def commit(self, namespace: str):
+    def delete(self, term: int, payload: dict, transport, majority: int):
+        namespace = payload.get('namespace', 'default')
+        with self.__lock:
+            self.staged = payload
+            waited = 0
+            log_message = {
+                'term': term,
+                'addr': transport.addr,
+                'payload': payload,
+                'action': 'log',
+                'commit_id': self.commit_id
+            }
+            log_confirmations = [False] * len(transport.peers)
+            Thread(target=self.send_data, args=(
+                log_message, transport, log_confirmations,)).start()
+
+            while sum(log_confirmations) + 1 < majority:
+                waited += 0.0005
+                time.sleep(0.0005)
+                if waited > cfg.MAX_LOG_WAIT / 1000:
+                    logger.info(
+                        f"waited {cfg.MAX_LOG_WAIT} ms, update rejected:")
+                    return False
+
+            commit_message = {
+                "term": term,
+                "addr": transport.addr,
+                "payload": payload,
+                "action": "commit",
+                "commit_id": self.commit_id
+            }
+            Thread(target=self.send_data,
+                args=(commit_message, transport,)).start()
+            self.commit(namespace, delete=True)
+        logger.info(
+            "majority reached, replied to client, sending message to commit")
+        return True
+
+    def commit(self, namespace: str, delete: bool=False):
         '''
         commit the message to the database after getting
-        atleast `majority + 1` conrfirmations from the 
+        atleast `majority + 1` confirmations from the 
         follower nodes
         '''
         self.commit_id += 1
-        with self.__lock:
-            self.log.append(self.staged)
-            key = self.staged['key']
-            value = self.staged['value']
+        # with self.__lock:
+        self.log.append(self.staged)
+        key = self.staged['key']
+        if delete:
+            value = self.db.delete(key=key, namespace=namespace)
             self.staged = None
-            self.db.put(key, value, namespace=namespace)
+            logger.info(f"LOG DELETE>>>>>>>>>>>>>>>, {self.log}")
+            return value
+        value = self.staged['value']
+        self.staged = None
+        self.db.put(key, value, namespace=namespace)
+        logger.info(f"LOG>>>>>>>>>>>>>>>, {self.log}")

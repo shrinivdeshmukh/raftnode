@@ -113,7 +113,18 @@ class Transport:
                     else:
                         reply = self.redirect_to_leader(self.encode_json(msg))
                         client.send(bytes(reply, encoding='utf-8'))
-
+                elif msg_type == 'delete':
+                    if self.election.status == cfg.LEADER:
+                        get_response = {'type': 'delete'}
+                        print("GOT DELETE", msg)
+                        reply = self.election.handle_delete(msg)
+                        if not reply:
+                            reply = None
+                        get_response.update({'data': reply})
+                        client.send(self.encode_json(get_response))
+                    else:
+                        reply = self.redirect_to_leader(self.encode_json(msg))
+                        client.send(bytes(reply, encoding='utf-8'))
                 elif msg_type == 'data':
                     term, commit_id = self.election.heartbeat_handler(msg)
                     client.send(self.encode_json(

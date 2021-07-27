@@ -109,9 +109,13 @@ class Election:
         heartbeats to the follower nodes
         '''
         if self.store.staged:
-            self.store.put(self.term, self.store.staged,
-                           self.__transport, self.majority)
-
+            logger.info(f"STAGED>>>>>>>>>>>, {self.store.staged}")
+            if self.store.staged.get('delete', False):
+                self.store.delete(self.term, self.store.staged, self.__transport, self.majority)
+            else:
+                self.store.put(self.term, self.store.staged,
+                            self.__transport, self.majority)
+        logger.info(f"I'm the leader of the pack for the term {self.term}")
         for peer in self.peers:
             Thread(target=self.send_heartbeat, args=(peer,)).start()
 
@@ -122,19 +126,22 @@ class Election:
         :param peer: address of the follower node
         :type peer: str
         '''
-        if self.store.log:
-            self.update_follower_commit(peer)
-        message = {'term': self.term, 'addr': self.__transport.addr}
-        while self.status == cfg.LEADER:
-            start = time.time()
-            reply = self.__transport.heartbeat(peer=peer, message=message)
-            if reply:
-                if reply['term'] > self.term:
-                    self.term = reply['term']
-                    self.status = cfg.FOLLOWER
-                    self.init_timeout()
-            delta = time.time() - start
-            time.sleep((cfg.HB_TIME - delta) / 1000)
+        try:
+            if self.store.log:
+                self.update_follower_commit(peer)
+            message = {'term': self.term, 'addr': self.__transport.addr}
+            while self.status == cfg.LEADER:
+                start = time.time()
+                reply = self.__transport.heartbeat(peer=peer, message=message)
+                if reply:
+                    if reply['term'] > self.term:
+                        self.term = reply['term']
+                        self.status = cfg.FOLLOWER
+                        self.init_timeout()
+                delta = time.time() - start
+                time.sleep((cfg.HB_TIME - delta) / 1000)
+        except Exception as e:
+            raise e
 
     def update_follower_commit(self, follower: str):
         '''
@@ -169,23 +176,26 @@ class Election:
         :returns: term and latest commit_id of this (follower) node
         :rtype: tuple
         '''
-        term = message['term']
-        if self.term <= term:
-            self.leader = message['addr']
-            self.reset_timeout()
+        try:
+            term = message['term']
+            if self.term <= term:
+                self.leader = message['addr']
+                self.reset_timeout()
 
-            if self.status == cfg.CANDIDATE:
-                self.status = cfg.FOLLOWER
-            elif self.status == cfg.LEADER:
-                self.status = cfg.FOLLOWER
-                self.init_timeout()
+                if self.status == cfg.CANDIDATE:
+                    self.status = cfg.FOLLOWER
+                elif self.status == cfg.LEADER:
+                    self.status = cfg.FOLLOWER
+                    self.init_timeout()
 
-            if self.term < term:
-                self.term = term
+                if self.term < term:
+                    self.term = term
 
-            if 'action' in message:
-                self.store.action_handler(message)
-        return self.term, self.store.commit_id
+                if 'action' in message:
+                    self.store.action_handler(message)
+            return self.term, self.store.commit_id
+        except Exception as e:
+            raise e
 
     def handle_put(self, payload: dict) -> bool:
         '''
@@ -211,6 +221,9 @@ class Election:
         :type payload: dict
         '''
         return self.store.get(payload)
+
+    def handle_delete(self, payload: dict):
+        return self.store.delete(self.term, payload, self.__transport, self.majority)
 
     def timeout_loop(self):
         '''

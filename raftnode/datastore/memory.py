@@ -51,3 +51,19 @@ class MemoryStore(IDatastore):
             return data
         except Exception as e:
             raise e
+    
+    def delete(self, key: str, **kwargs) -> str:
+        '''
+        delete data from in-memory datastore
+
+        :param key: key whose value will be deleted from the
+                    datastore
+        :type key: str
+        '''
+        try:
+            removed_value = self.__db.pop(key)
+            return removed_value
+        except KeyError as ke:
+            return f'Key {key} not found in the database'
+        except Exception as e:
+            raise e

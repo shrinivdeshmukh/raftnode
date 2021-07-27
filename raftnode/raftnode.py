@@ -1,5 +1,6 @@
 """Main module."""
 from threading import Thread
+import socket
 from raftnode import logger
 from raftnode.election import Election
 from raftnode.store import Store
@@ -19,11 +20,15 @@ class RaftNode(Transport):
         '''
         start the server, add peers and election timer
         '''
-        logger.info('starting transport')
-        self.start_transport()
-        logger.info('adding peers')
-        self.start_adding_peers(peers=self.__peers)
-        logger.info('initializing timeout')
+        try:
+            logger.info('starting transport')
+            self.start_transport()
+            logger.info('adding peers')
+            self.start_adding_peers(peers=self.__peers)
+            logger.info('initializing timeout')
+        except Exception as e:
+            self.__transport.server.shutdown(socket.SHUT_RDWR)
+            self.__transport.server.close()
         # self.start_timeout()
 
     def start_transport(self):
