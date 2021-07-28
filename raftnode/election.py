@@ -160,7 +160,7 @@ class Election:
         reply = self.__transport.heartbeat(follower, first_message)
         i = -1
         if reply:
-            while reply["commit_id"] < self.store.commit_id:
+            while reply["commit_id"] < self.store.commit_id and abs(i) <= len(self.store.log):
                 second_message.update({'payload': self.store.log[i]})
                 reply = self.__transport.heartbeat(follower, second_message)
                 i = i - 1
