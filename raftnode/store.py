@@ -124,7 +124,7 @@ class Store:
         :type confirmations: list
         '''
         for i, peer in enumerate(transport.peers):
-            reply = transport.send_data(peer, message)
+            reply = transport.heartbeat(peer, message)
             if reply and confirmations:
                 confirmations[i] = True
 

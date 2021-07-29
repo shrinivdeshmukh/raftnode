@@ -90,49 +90,75 @@ class Transport:
                 elif msg_type == 'ping':
                     msg.update({'is_alive': True, 'addr': self.addr})
                     client.send(self.encode_json(msg))
-                elif msg_type == 'put':
-                    if self.election.status == cfg.LEADER:
-                        put_response = {'type': 'put'}
-                        reply = self.election.handle_put(msg)
-                        put_response.update({'success': reply})
-                        client.send(self.encode_json(put_response))
+                # elif msg_type == 'put':
+                #     if self.election.status == cfg.LEADER:
+                #         put_response = {'type': 'put'}
+                #         reply = self.election.handle_put(msg)
+                #         put_response.update({'success': reply})
+                #         client.send(self.encode_json(put_response))
                     # elif self.election.status == cfg.CANDIDATE:
                     #     reply = self.encode_json(
                     #         {'type': 'put', 'success': False, 'message': 'Cluster unavailable, please try again in sometime'})
-                    else:
-                        reply = self.redirect_to_leader(self.encode_json(msg))
-                        client.send(bytes(reply, encoding='utf-8'))
-                elif msg_type == 'get':
+                    # else:
+                    #     reply = self.redirect_to_leader(self.encode_json(msg))
+                    #     client.send(bytes(reply, encoding='utf-8'))
+                # elif msg_type == 'get':
+                #     if self.election.status == cfg.LEADER:
+                #         get_response = {'type': 'get'}
+                #         reply = self.election.handle_get(msg)
+                #         if not reply:
+                #             reply = None
+                #         get_response.update({'data': reply})
+                #         client.send(self.encode_json(get_response))
+                #     else:
+                #         reply = self.redirect_to_leader(self.encode_json(msg))
+                #         client.send(bytes(reply, encoding='utf-8'))
+                # elif msg_type == 'delete':
+                #     if self.election.status == cfg.LEADER:
+                #         get_response = {'type': 'delete'}
+                #         print("GOT DELETE", msg)
+                #         reply = self.election.handle_delete(msg)
+                #         if not reply:
+                #             reply = None
+                #         get_response.update({'data': reply})
+                #         client.send(self.encode_json(get_response))
+                #     else:
+                #         reply = self.redirect_to_leader(self.encode_json(msg))
+                #         client.send(bytes(reply, encoding='utf-8'))
+                # elif msg_type == 'data':
+                #     term, commit_id = self.election.heartbeat_handler(msg)
+                #     client.send(self.encode_json(
+                #         {'type': 'data', 'term': term, 'commit_id': commit_id}))
+                elif msg_type == 'peers':
                     if self.election.status == cfg.LEADER:
-                        get_response = {'type': 'get'}
-                        reply = self.election.handle_get(msg)
-                        if not reply:
-                            reply = None
-                        get_response.update({'data': reply})
-                        client.send(self.encode_json(get_response))
+                        peers_response = {'type': 'peers'}
+                        peers_response.update({'peers': self.peers})
+                        client.send(self.encode_json(peers_response))
                     else:
                         reply = self.redirect_to_leader(self.encode_json(msg))
                         client.send(bytes(reply, encoding='utf-8'))
-                elif msg_type == 'delete':
-                    if self.election.status == cfg.LEADER:
-                        get_response = {'type': 'delete'}
-                        print("GOT DELETE", msg)
-                        reply = self.election.handle_delete(msg)
-                        if not reply:
-                            reply = None
-                        get_response.update({'data': reply})
-                        client.send(self.encode_json(get_response))
-                    else:
-                        reply = self.redirect_to_leader(self.encode_json(msg))
-                        client.send(bytes(reply, encoding='utf-8'))
-                elif msg_type == 'data':
-                    term, commit_id = self.election.heartbeat_handler(msg)
-                    client.send(self.encode_json(
-                        {'type': 'data', 'term': term, 'commit_id': commit_id}))
+                else:
+                    reply = self.__resolve_msg(msg)
+                    client.send(self.encode_json(reply))
             else:
                 send_msg = 'hey there; from {}'.format(self.addr)
                 client.send(bytes(self.addr, encoding='utf-8'))
             client.close()
+
+    def __resolve_msg(self, msg: dict):
+        try:
+            msg_type = msg['type']
+            if self.election.status == cfg.LEADER:
+                client_response = {'type': msg_type}
+                handler = getattr(self.election, f'handle_{msg_type}')
+                reply = handler(msg)
+                client_response.update({'data': reply})
+                return client_response
+            else:
+                reply = self.redirect_to_leader(self.encode_json(msg))
+                return self.decode_json(reply)
+        except Exception as e:
+            raise e
 
     def redirect_to_leader(self, message: dict):
         '''
