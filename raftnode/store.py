@@ -68,6 +68,7 @@ class Store:
             # cid = message.get('commit_id', self.commit_id)
                     namespace = command.get('namespace', 'default')
                     delete = command.get('delete', False)
+                    leader_cid = command
                     print("COMMAND", command, delete)
                     if not self.staged:
                         self.staged = command
@@ -220,9 +221,10 @@ class Store:
         cid = kwargs.get('commit_id', self.commit_id)
         # with self.__lock:
         self.staged.update({'commit_id': cid})
-        self.log.append(self.staged)
-        self.__flush()
-        self.__session()
+        if self.staged not in self.log:
+            self.log.append(self.staged)
+            self.__flush()
+            self.__session()
         key = self.staged['key']
         if delete:
             value = self.db.delete(key=key, namespace=namespace)
