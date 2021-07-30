@@ -158,12 +158,14 @@ class Election:
             'action': 'commit',
         }
         reply = self.__transport.heartbeat(follower, first_message)
-        i = 0
+        cid = self.store.commit_id
         if reply:
-            while reply["commit_id"] < self.store.commit_id and abs(i) < len(self.store.log):
-                second_message.update({'payload': self.store.log[i]})
+            follower_cid = reply['commit_id']
+            if follower_cid < self.store.commit_id:
+                range_commands = list(self.store.log)[follower_cid:]
+                # while reply["commit_id"] < self.store.commit_id and abs(i) <= len(self.store.log):
+                second_message.update({'payload': range_commands, 'commit_id': cid})
                 reply = self.__transport.heartbeat(follower, second_message)
-                i += 1
 
     def heartbeat_handler(self, message: dict) -> tuple:
         '''

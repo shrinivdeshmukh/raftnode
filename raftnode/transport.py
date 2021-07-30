@@ -287,18 +287,22 @@ class Transport:
 
         :param peer: address of the peer in `ip:port` format
         '''
-        client = self.reconnect(peer)
-        if not client:
-            return
-        echo_msg = self.encode_json({'type': 'ping'})
-        client.send(echo_msg)
-        echo_reply = self.decode_json(client.recv(1024).decode('utf-8'))
-        client.close()
-        if echo_reply:
-            logger.debug('ping  >>> {}'.format(echo_reply))
-            if echo_reply['is_alive']:
-                return True
-        return False
+        try:
+            client = self.reconnect(peer)
+            if not client:
+                return
+            echo_msg = self.encode_json({'type': 'ping'})
+            client.send(echo_msg)
+            echo_reply = self.decode_json(client.recv(1024).decode('utf-8'))
+            client.close()
+            if echo_reply:
+                logger.debug('ping  >>> {}'.format(echo_reply))
+                if echo_reply['is_alive']:
+                    return True
+            return False
+        except ConnectionResetError as e:
+            logger.info(f'[ECHO]lost connection to peer {peer}')
+            return None
 
     def heartbeat(self, peer: str, message: dict = None) -> dict:
         '''
@@ -315,15 +319,21 @@ class Transport:
         :returns: heartbeat message response as received from the follower
         :rtype: dict
         '''
-        client = self.reconnect(peer)
-        if not client:
-            return
-        message.update({'type': 'heartbeat'})
-        heartbeat_message = self.encode_json(message)
-        client.send(heartbeat_message)
-        heartbeat_reply = self.decode_json(client.recv(1024).decode('utf-8'))
-        client.close()
-        return heartbeat_reply
+        try:
+            client = self.reconnect(peer)
+            if not client:
+                return
+            message.update({'type': 'heartbeat'})
+            heartbeat_message = self.encode_json(message)
+            client.send(heartbeat_message)
+            heartbeat_reply = client.recv(1024).decode('utf-8')
+            if bool(heartbeat_reply):
+                heartbeat_reply = self.decode_json(heartbeat_reply)
+            client.close()
+            return heartbeat_reply
+        except ConnectionResetError as e:
+            logger.info(f'[HEARTBEAT]lost connection to peer {peer}')
+            return None
 
     def vote_request(self, peer: str, message: dict = None):
         '''
@@ -339,16 +349,20 @@ class Transport:
 
         :returns: vote response as received from the voter node
         :rtype: dict
-        ''' 
-        client = self.reconnect(peer)
-        if not client:
-            return
-        message.update({'type': 'vote_request'})
-        vote_request_message = self.encode_json(message)
-        client.send(vote_request_message)
-        vote_reply = self.decode_json(client.recv(1024).decode('utf-8'))
-        client.close()
-        return vote_reply
+        '''
+        try:
+            client = self.reconnect(peer)
+            if not client:
+                return
+            message.update({'type': 'vote_request'})
+            vote_request_message = self.encode_json(message)
+            client.send(vote_request_message)
+            vote_reply = self.decode_json(client.recv(1024).decode('utf-8'))
+            client.close()
+            return vote_reply
+        except ConnectionResetError as e:
+            logger.info(f'[VOTE REQUEST]lost connection to peer {peer}')
+            return None
 
     def send_data(self, peer=None, message: dict = None):
         '''
