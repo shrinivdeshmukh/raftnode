@@ -21,17 +21,18 @@ class Store:
         self.__session()
 
     def __session(self):
-        self.f = shelve.open(path.join(self.__data_dir,self.__log_file))
+        self.f = shelve.open(path.join(self.__data_dir,self.__log_file), writeback=True)
         try:
             if self.f['data']:
-                commit_id = self.f['data'][-1]['commit_id']
-                print("COMMIT ID", commit_id)
+                self.commit_id = self.f['data'][-1]['commit_id']
+                print("COMMIT ID", self.commit_id)
         except KeyError as e:
             self.f['data'] = self.log
             print('self.f.data is', self.f['data'])
     
     def __flush(self):
-        self.f['data'].extend(self.log)
+        self.f['data'].append(self.staged)
+        print('---------shelve log-------', self.f['data'], '\n-------------')
         self.f.close()
 
     def __get_database(self, store_type: str, **kwargs):
