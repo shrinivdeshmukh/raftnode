@@ -109,13 +109,14 @@ class Election:
         heartbeats to the follower nodes
         '''
         if self.store.staged:
-            logger.info(f"STAGED>>>>>>>>>>>, {self.store.staged}")
+            # logger.info(f"STAGED>>>>>>>>>>>, {self.store.staged}")
             if self.store.staged.get('delete', False):
                 self.store.delete(self.term, self.store.staged, self.__transport, self.majority)
             else:
                 self.store.put(self.term, self.store.staged,
                             self.__transport, self.majority)
         logger.info(f"I'm the leader of the pack for the term {self.term}")
+        logger.debug('sending heartbeat to peers')
         for peer in self.peers:
             Thread(target=self.send_heartbeat, args=(peer,)).start()
 
@@ -131,6 +132,7 @@ class Election:
                 self.update_follower_commit(peer)
             message = {'term': self.term, 'addr': self.__transport.addr}
             while self.status == cfg.LEADER:
+                logger.debug(f'[PEER HEARTBEAT] {peer}')
                 start = time.time()
                 reply = self.__transport.heartbeat(peer=peer, message=message)
                 if reply:
@@ -140,6 +142,7 @@ class Election:
                         self.init_timeout()
                 delta = time.time() - start
                 time.sleep((cfg.HB_TIME - delta) / 1000)
+                logger.debug(f'[PEER HEARTBEAT RESPONSE] {peer} {reply}')
         except Exception as e:
             raise e
 
@@ -183,7 +186,7 @@ class Election:
             if self.term <= term:
                 self.leader = message['addr']
                 self.reset_timeout()
-
+                logger.debug(f'got heartbeat from leader {self.leader}')
                 if self.status == cfg.CANDIDATE:
                     self.status = cfg.FOLLOWER
                 elif self.status == cfg.LEADER:
@@ -194,9 +197,8 @@ class Election:
                     self.term = term
 
                 if 'action' in message:
-                    self.reset_timeout()
+                    logger.debug(f'received command from leader {message}')
                     self.store.action_handler(message)
-                    self.reset_timeout()
             return self.term, self.store.commit_id
         except Exception as e:
             raise e
@@ -212,7 +214,6 @@ class Election:
                   False otherwise
         :rtype: bool
         '''
-        self.reset_timeout()
         reply = self.store.put(
             self.term, payload, self.__transport, self.majority)
         return reply
@@ -228,7 +229,6 @@ class Election:
         return self.store.get(payload)
 
     def handle_delete(self, payload: dict):
-        self.reset_timeout()
         return self.store.delete(self.term, payload, self.__transport, self.majority)
 
     def timeout_loop(self):

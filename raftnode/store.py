@@ -25,14 +25,14 @@ class Store:
         try:
             if self.f['data']:
                 self.commit_id = self.f['data'][-1]['commit_id']
-                print("COMMIT ID", self.commit_id)
+                logger.debug(f'[SHELVE LOG] commit id, {self.commit_id}')
         except KeyError as e:
             self.f['data'] = self.log
-            print('self.f.data is', self.f['data'])
+            logger.debug(f'[SHELVE LOG] Initial log, {self.f["data"]}')
     
     def __flush(self):
         self.f['data'].append(self.staged)
-        print('---------shelve log-------', self.f['data'], '\n-------------')
+        logger.info(f'[DATA INSERT] {self.f["data"][-1]}')
         self.f.close()
 
     def __get_database(self, store_type: str, **kwargs):
@@ -58,29 +58,29 @@ class Store:
         :param message: log/commit data as received from the leader
         :type message: dict
         '''
-        action = message['action']
-        payload = message['payload']
-        if action == 'log':
-            self.staged = payload
-        elif action == 'commit':
-            if isinstance(payload, list):
-                for command in payload:
-            # cid = message.get('commit_id', self.commit_id)
-                    namespace = command.get('namespace', 'default')
-                    delete = command.get('delete', False)
-                    leader_cid = command
-                    print("COMMAND", command, delete)
+        with self.__lock:
+            action = message['action']
+            payload = message['payload']
+            if action == 'log':
+                self.staged = payload
+            elif action == 'commit':
+                if isinstance(payload, list):
+                    for command in payload:
+                # cid = message.get('commit_id', self.commit_id)
+                        namespace = command.get('namespace', 'default')
+                        delete = command.get('delete', False)
+                        leader_cid = command
+                        logger.debug(f'[OLD COMMANDS] adding command {command}')
+                        if not self.staged:
+                            self.staged = command
+                        self.commit(namespace, delete)
+                else:
+                    namespace = payload.get('namespace', 'default')
+                    delete = payload.get('delete', False)
+                    logger.debug(f'[COMMAND] {payload}')
                     if not self.staged:
-                        self.staged = command
+                        self.staged = payload
                     self.commit(namespace, delete)
-            else:
-                namespace = payload.get('namespace', 'default')
-                delete = payload.get('delete', False)
-                print("PAYLOAD", payload, delete)
-                if not self.staged:
-                    self.staged = payload
-                self.commit(namespace, delete)
-
         return
 
     def put(self, term: int, payload: dict, transport, majority: int) -> bool:
@@ -132,11 +132,11 @@ class Store:
                 "action": "commit",
                 "commit_id": self.commit_id
             }
-            self.commit(namespace)
-            Thread(target=self.send_data,
-                args=(commit_message, transport,)).start()
-            logger.info(
-                "majority reached, replied to client, sending message to commit")
+        self.commit(namespace)
+        Thread(target=self.send_data,
+            args=(commit_message, transport,)).start()
+        logger.info(
+            "majority reached, replied to client, sending message to commit")
         return True
 
     def send_data(self, message: dict, transport, confirmations: list = None):
@@ -222,16 +222,18 @@ class Store:
         # with self.__lock:
         self.staged.update({'commit_id': cid})
         if self.staged not in self.log:
-            self.log.append(self.staged)
+            logger.debug(f'[APPEND LOG] {self.staged}')
+            # self.log.append(self.staged)
             self.__flush()
             self.__session()
+            self.log = self.f['data']
         key = self.staged['key']
         if delete:
             value = self.db.delete(key=key, namespace=namespace)
             self.staged = None
-            logger.info(f"LOG DELETE>>>>>>>>>>>>>>>, {self.log}")
+            logger.debug(f"[DELETE COMMAND] {self.staged}")
             return value
         value = self.staged['value']
         self.staged = None
         self.db.put(key, value, namespace=namespace)
-        logger.info(f"LOG>>>>>>>>>>>>>>>, {self.log}")
+        logger.info(f"[PUT COMMAND], {self.staged}")
