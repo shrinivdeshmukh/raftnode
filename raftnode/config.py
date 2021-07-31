@@ -8,8 +8,8 @@ LOW_TIMEOUT = getenv('LOW_TIMEOUT', 100)
 HIGH_TIMEOUT = getenv('HIGH_TIMEOUT', 500)
 
 REQUESTS_TIMEOUT = 50
-HB_TIME = ('HB_TIME', 50)
-MAX_LOG_WAIT = ('MAX_LOG_WAIT', 1500)
+HB_TIME = getenv('HB_TIME', 50)
+MAX_LOG_WAIT = getenv('MAX_LOG_WAIT', 1500)
 
 def random_timeout():
     '''
