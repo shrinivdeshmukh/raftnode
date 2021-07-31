@@ -194,7 +194,9 @@ class Election:
                     self.term = term
 
                 if 'action' in message:
+                    self.reset_timeout()
                     self.store.action_handler(message)
+                    self.reset_timeout()
             return self.term, self.store.commit_id
         except Exception as e:
             raise e
@@ -210,6 +212,7 @@ class Election:
                   False otherwise
         :rtype: bool
         '''
+        self.reset_timeout()
         reply = self.store.put(
             self.term, payload, self.__transport, self.majority)
         return reply
@@ -225,6 +228,7 @@ class Election:
         return self.store.get(payload)
 
     def handle_delete(self, payload: dict):
+        self.reset_timeout()
         return self.store.delete(self.term, payload, self.__transport, self.majority)
 
     def timeout_loop(self):
