@@ -35,21 +35,6 @@ def main():
     node = Node(my_ip=args.ip, peers=peers, timeout=args.timeout, store_type=store_type, data_dir=args.volume)
     node.run()
 
-def doc_argparse():
-    parser = argparse.ArgumentParser(
-        formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument('-d', '--database', help='If True, the data will be stored in a persistent rocksdb database; otherwise, the data will be stored in an in-memory python dictionary. \n Example: ``--database``', 
-                        action="store_true", default=False)
-    parser.add_argument(
-        '--ip', help='IP address of this machine; \n Example: ``--ip 192.168.0.101:5000``', required=True)
-    parser.add_argument(
-        '--peers', help='Comma separated IP addresses of other nodes in the cluster \n Example: ``--peers 192.168.0.101:5000,192.168.0.102:5000,192.168.0.103:5000``', default=None)
-    parser.add_argument('-t', '--timeout', help='If peers are given, this timeout number is the interval (in seconds) after which all peers will get a ping; if peers do not answer, they will be removed from this node.'
-                        + '\n Example ``--timeout 0.5``', default=1)
-    parser.add_argument(
-        '-v', '--volume', help='The database files will be kept in this directory. \n Example: ``--volume ./data``', default='data')
-    return parser
-
 def render_help(msg: str):
     msg = bold(magenta(msg))
     return msg
