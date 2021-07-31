@@ -132,11 +132,11 @@ class Store:
                 "action": "commit",
                 "commit_id": self.commit_id
             }
-        self.commit(namespace)
-        Thread(target=self.send_data,
-               args=(commit_message, transport,)).start()
-        logger.info(
-            "majority reached, replied to client, sending message to commit")
+            self.commit(namespace)
+            Thread(target=self.send_data,
+                args=(commit_message, transport,)).start()
+            logger.info(
+                "majority reached, replied to client, sending message to commit")
         return True
 
     def send_data(self, message: dict, transport, confirmations: list = None):
