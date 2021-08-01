@@ -169,6 +169,7 @@ class Transport:
         :param message: message to send to the client
         :param type: dict
         '''
+        logger.info(f'[LEADER REDIRECT] redirecting to leader at address {self.election.leader}')
         leader_host, leader_port = (self.election.leader).split(':')
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect((leader_host, int(leader_port)))
@@ -239,29 +240,35 @@ class Transport:
         :type addr: str
         '''
         i = 0
-        while i < 20:
-            try:
-                host, port = addr.split(':')
-                client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                client.connect((host, int(port)))
-                return client
-            except ConnectionRefusedError:
-                client.close()
-                time.sleep(0.002)
-                del client
-            except TimeoutError as e:
-                logger.info(f'Timeout error connecting to peer {addr}')
-                logger.info(f'Removing peer {addr} from list of peers')
+        # while i < 20:
+        try:
+            host, port = addr.split(':')
+            client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            client.connect((host, int(port)))
+            return client
+        except ConnectionRefusedError:
+            client.close()
+            time.sleep(0.002)
+            if addr in self.peers:
                 with self.lock:
                     self.peers.remove(addr)
-                client.close()
-            except Exception as e:
-                client.close()
-                raise e
-            finally:
-                i += 1
-        else:
-            return False
+            del client
+        except TimeoutError as e:
+            logger.info(f'Timeout error connecting to peer {addr}')
+            logger.info(f'Removing peer {addr} from list of peers')
+            if addr in self.peers:
+                with self.lock:
+                    self.peers.remove(addr)
+            client.close()
+        except Exception as e:
+            client.close()
+            raise e
+        # finally:
+        #     i += 1
+    # else:
+    #     with self.lock:
+    #             self.peers.remove(addr)
+    #     return False
 
     def ping(self, timeout: float):
         '''
