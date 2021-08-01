@@ -67,7 +67,10 @@ class Transport:
         self.election = election
         while True:
             client, address = self.server.accept()
-            msg = client.recv(1024).decode('utf-8')
+            try:
+                msg = client.recv(1024).decode('utf-8')
+            except ConnectionResetError as e:
+                continue
             msg = self.decode_json(msg)
             if isinstance(msg, dict):
                 msg_type = msg['type']
