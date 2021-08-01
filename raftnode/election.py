@@ -14,6 +14,7 @@ class Election:
         self.vote_count = 0
         self.store = store
         self.__transport = transport
+        self.__lock = Lock()
         self.init_timeout()
 
     def start_election(self):
@@ -101,7 +102,8 @@ class Election:
     def increment_vote(self):
         self.vote_count += 1
         if self.vote_count >= self.majority:
-            self.status = cfg.LEADER
+            with self.__lock:
+                self.status = cfg.LEADER
             self.start_heartbeat()
 
     def start_heartbeat(self):
