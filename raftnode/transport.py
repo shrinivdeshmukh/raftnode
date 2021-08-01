@@ -182,6 +182,9 @@ class Transport:
             return leader_reply
         except ConnectionRefusedError as e:
             return {'data': 'leader unavailable'}
+        except AttributeError as e:
+            if "object has no attribute" in e.args[0]:
+                time.sleep(1)
 
     def __proxy_client(self, addr: str, message=None):
         if not message:
