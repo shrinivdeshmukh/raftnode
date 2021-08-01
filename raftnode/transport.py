@@ -172,13 +172,16 @@ class Transport:
         :param message: message to send to the client
         :param type: dict
         '''
-        logger.info(f'[LEADER REDIRECT] redirecting to leader at address {self.election.leader}')
-        leader_host, leader_port = (self.election.leader).split(':')
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((leader_host, int(leader_port)))
-        s.send(message)
-        leader_reply = s.recv(1024).decode('utf-8')
-        return leader_reply
+        try:
+            logger.info(f'[LEADER REDIRECT] redirecting to leader at address {self.election.leader}')
+            leader_host, leader_port = (self.election.leader).split(':')
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.connect((leader_host, int(leader_port)))
+            s.send(message)
+            leader_reply = s.recv(1024).decode('utf-8')
+            return leader_reply
+        except ConnectionRefusedError as e:
+            return {'data': 'leader unavailable'}
 
     def __proxy_client(self, addr: str, message=None):
         if not message:
