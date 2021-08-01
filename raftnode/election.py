@@ -111,6 +111,7 @@ class Election:
         If this node is elected as the leader, start sending
         heartbeats to the follower nodes
         '''
+        self.__transport.election.status == cfg.LEADER
         if self.store.staged:
             # logger.info(f"STAGED>>>>>>>>>>>, {self.store.staged}")
             if self.store.staged.get('delete', False):
