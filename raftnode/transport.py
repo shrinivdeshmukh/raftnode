@@ -431,7 +431,7 @@ class Transport:
             try:
                 return loads(msg)
             except JSONDecodeError as e:
-                raise TypeError('JSON format incorrect {}'.format(msg)) from e
+                logger.exception('JSON format incorrect {}'.format(msg))
             except Exception as e:
                 raise e
         return msg
