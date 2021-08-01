@@ -142,7 +142,8 @@ class Transport:
                         client.send(bytes(reply, encoding='utf-8'))
                 else:
                     reply = self.__resolve_msg(msg)
-                    client.send(self.encode_json(reply))
+                    if reply:
+                        client.send(self.encode_json(reply))
             else:
                 send_msg = 'hey there; from {}'.format(self.addr)
                 client.send(bytes(self.addr, encoding='utf-8'))
