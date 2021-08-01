@@ -90,6 +90,7 @@ class Election:
                   False otherwise
         :rtype: bool
         '''
+        self.reset_timeout()
         if self.term < term and self.store.commit_id <= commit_id and (staged or (self.store.staged == staged)):
             self.reset_timeout()
             self.term = term
