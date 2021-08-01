@@ -168,10 +168,11 @@ class Election:
         if reply:
             follower_cid = reply['commit_id']
             if follower_cid < self.store.commit_id:
-                range_commands = list(self.store.log)[follower_cid:]
+                command_chunks = cfg.chunks(list(self.store.log)[follower_cid:], 4)
+                for chunk in command_chunks:
                 # while reply["commit_id"] < self.store.commit_id and abs(i) <= len(self.store.log):
-                second_message.update({'payload': range_commands, 'commit_id': cid})
-                reply = self.__transport.heartbeat(follower, second_message)
+                    second_message.update({'payload': chunk, 'commit_id': cid})
+                    reply = self.__transport.heartbeat(follower, second_message)
 
     def heartbeat_handler(self, message: dict) -> tuple:
         '''
