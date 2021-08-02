@@ -73,9 +73,9 @@ class Transport:
                 if bool(election):
                     self.election = election
                 print("WHATSIUP ABCDEFGH", self.election)
-            print("SSSSSSSSSSSSS", self.election.status)
             if isinstance(self.election, dict):
                 self.election = self.election['election']
+            print("SSSSSSSSSSSSS", self.election.status)
             client, address = self.server.accept()
             try:
                 msg = client.recv(1024).decode('utf-8')
