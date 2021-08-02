@@ -72,8 +72,8 @@ class Transport:
                 election = self.q.get()
                 if bool(election):
                     self.election = election
-                # print("WHATSIUP ABCDEFGH", self.election)
-            # print("SSSSSSSSSSSSS", self.election)
+                print("WHATSIUP ABCDEFGH", self.election)
+            print("SSSSSSSSSSSSS", self.election.status)
             if isinstance(self.election, dict):
                 self.election = self.election['election']
             client, address = self.server.accept()
