@@ -196,6 +196,8 @@ class Transport:
         except AttributeError as e:
             if "object has no attribute" in e.args[0]:
                 time.sleep(1)
+        except ConnectionResetError as e:
+            return {'data': 'connection reset by peer'}
 
     def __proxy_client(self, addr: str, message=None):
         if not message:
