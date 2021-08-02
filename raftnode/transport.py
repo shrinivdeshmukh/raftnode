@@ -1,5 +1,6 @@
 import socket
 import time
+from queue import Queue
 from json import JSONDecodeError, dumps, loads
 from threading import Lock, Thread
 
@@ -7,7 +8,7 @@ from raftnode import cfg, logger
 
 class Transport:
 
-    def __init__(self, my_ip: str, timeout: int):
+    def __init__(self, my_ip: str, timeout: int, queue: Queue):
         self.host, self.port = my_ip.split(':')
         self.port = int(self.port)
         self.addr = my_ip
@@ -16,9 +17,10 @@ class Transport:
         self.server.listen()
         self.peers = list()
         self.lock = Lock()
+        self.q = queue
         Thread(target=self.ping, args=(timeout,)).start()
 
-    def serve(self, election):
+    def serve(self):
         '''
         :param election: instance of the Election class
         :type election: Election
@@ -64,8 +66,16 @@ class Transport:
             nodes along with the heartbeat. It contains the current term
             and the latest commit_id
         '''
-        self.election = election
+        self.election = self.q.get()['election']
         while True:
+            if not self.q.empty():
+                election = self.q.get()
+                if bool(election):
+                    self.election = election
+                # print("WHATSIUP ABCDEFGH", self.election)
+            # print("SSSSSSSSSSSSS", self.election)
+            if isinstance(self.election, dict):
+                self.election = self.election['election']
             client, address = self.server.accept()
             try:
                 msg = client.recv(1024).decode('utf-8')

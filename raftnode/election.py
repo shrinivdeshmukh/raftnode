@@ -1,13 +1,13 @@
 import time
 from threading import Lock, Thread
-
+from queue import Queue
 from raftnode import cfg, logger
 from raftnode.store import Store
 from raftnode.transport import Transport
 
 
 class Election:
-    def __init__(self, transport: Transport, store: Store):
+    def __init__(self, transport: Transport, store: Store, queue: Queue):
         self.timeout_thread = None
         self.status = cfg.FOLLOWER
         self.term = 0
@@ -15,6 +15,7 @@ class Election:
         self.store = store
         self.__transport = transport
         self.__lock = Lock()
+        self.q = queue
         self.init_timeout()
 
     def start_election(self):
@@ -104,6 +105,14 @@ class Election:
         if self.vote_count >= self.majority:
             with self.__lock:
                 self.status = cfg.LEADER
+                if self.q.empty():
+                    self.q.put({'election': self})
+                else:
+                    election = self.q.get()
+                    print("IN ELSE", election)
+                    election.update({'election': self})
+                    print("puyttinh in queue", election)
+                    self.q.put(election)
             self.start_heartbeat()
 
     def start_heartbeat(self):
@@ -111,7 +120,8 @@ class Election:
         If this node is elected as the leader, start sending
         heartbeats to the follower nodes
         '''
-        self.__transport.election.status == cfg.LEADER
+        # self.q.put({})
+        self.status == cfg.LEADER
         if self.store.staged:
             # logger.info(f"STAGED>>>>>>>>>>>, {self.store.staged}")
             if self.store.staged.get('delete', False):
