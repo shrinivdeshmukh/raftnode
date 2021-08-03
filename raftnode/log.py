@@ -2,6 +2,7 @@
 import logging
 import os
 
+
 class Logging:
     def __init__(self, log_level, **kwargs):
         self.log_level = log_level
@@ -16,7 +17,6 @@ class Logging:
             os.makedirs(folder)
 
     def get_logger(self):
-        print('PARAMS', self.__log_params)
         logging.basicConfig(**self.__log_params, level=self.log_level,
                             format='%(asctime)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
         return self.logger

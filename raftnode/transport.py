@@ -6,6 +6,7 @@ from threading import Lock, Thread
 
 from raftnode import cfg, logger
 
+
 class Transport:
 
     def __init__(self, my_ip: str, timeout: int, queue: Queue):
@@ -72,10 +73,10 @@ class Transport:
                 election = self.q.get()
                 if bool(election):
                     self.election = election
-                print("WHATSIUP ABCDEFGH", self.election)
             if isinstance(self.election, dict):
                 self.election = self.election['election']
-            print("SSSSSSSSSSSSS", self.election.status)
+            logger.debug(
+                f'current membership status of this node: {self.election.status}')
             client, address = self.server.accept()
             try:
                 msg = client.recv(1024).decode('utf-8')
@@ -103,45 +104,6 @@ class Transport:
                 elif msg_type == 'ping':
                     msg.update({'is_alive': True, 'addr': self.addr})
                     client.send(self.encode_json(msg))
-                # elif msg_type == 'put':
-                #     if self.election.status == cfg.LEADER:
-                #         put_response = {'type': 'put'}
-                #         reply = self.election.handle_put(msg)
-                #         put_response.update({'success': reply})
-                #         client.send(self.encode_json(put_response))
-                    # elif self.election.status == cfg.CANDIDATE:
-                    #     reply = self.encode_json(
-                    #         {'type': 'put', 'success': False, 'message': 'Cluster unavailable, please try again in sometime'})
-                    # else:
-                    #     reply = self.redirect_to_leader(self.encode_json(msg))
-                    #     client.send(bytes(reply, encoding='utf-8'))
-                # elif msg_type == 'get':
-                #     if self.election.status == cfg.LEADER:
-                #         get_response = {'type': 'get'}
-                #         reply = self.election.handle_get(msg)
-                #         if not reply:
-                #             reply = None
-                #         get_response.update({'data': reply})
-                #         client.send(self.encode_json(get_response))
-                #     else:
-                #         reply = self.redirect_to_leader(self.encode_json(msg))
-                #         client.send(bytes(reply, encoding='utf-8'))
-                # elif msg_type == 'delete':
-                #     if self.election.status == cfg.LEADER:
-                #         get_response = {'type': 'delete'}
-                #         print("GOT DELETE", msg)
-                #         reply = self.election.handle_delete(msg)
-                #         if not reply:
-                #             reply = None
-                #         get_response.update({'data': reply})
-                #         client.send(self.encode_json(get_response))
-                #     else:
-                #         reply = self.redirect_to_leader(self.encode_json(msg))
-                #         client.send(bytes(reply, encoding='utf-8'))
-                # elif msg_type == 'data':
-                #     term, commit_id = self.election.heartbeat_handler(msg)
-                #     client.send(self.encode_json(
-                #         {'type': 'data', 'term': term, 'commit_id': commit_id}))
                 elif msg_type == 'peers':
                     if self.election.status == cfg.LEADER:
                         peers_response = {'type': 'peers'}
@@ -184,7 +146,8 @@ class Transport:
         :param type: dict
         '''
         try:
-            logger.info(f'[LEADER REDIRECT] redirecting to leader at address {self.election.leader}')
+            logger.info(
+                f'[LEADER REDIRECT] redirecting to leader at address {self.election.leader}')
             leader_host, leader_port = (self.election.leader).split(':')
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.connect((leader_host, int(leader_port)))
@@ -407,7 +370,7 @@ class Transport:
 
         :returns: vote response as received from the voter node
         :rtype: dict
-        ''' 
+        '''
         client = self.reconnect(peer)
         if not client:
             return

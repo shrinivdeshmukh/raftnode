@@ -109,9 +109,7 @@ class Election:
                     self.q.put({'election': self})
                 else:
                     election = self.q.get()
-                    print("IN ELSE", election)
                     election.update({'election': self})
-                    print("puyttinh in queue", election)
                     self.q.put(election)
             self.start_heartbeat()
 
@@ -121,14 +119,15 @@ class Election:
         heartbeats to the follower nodes
         '''
         # self.q.put({})
-        self.status == cfg.LEADER
+        # self.status == cfg.LEADER
         if self.store.staged:
             # logger.info(f"STAGED>>>>>>>>>>>, {self.store.staged}")
             if self.store.staged.get('delete', False):
-                self.store.delete(self.term, self.store.staged, self.__transport, self.majority)
+                self.store.delete(self.term, self.store.staged,
+                                  self.__transport, self.majority)
             else:
                 self.store.put(self.term, self.store.staged,
-                            self.__transport, self.majority)
+                               self.__transport, self.majority)
         logger.info(f"I'm the leader of the pack for the term {self.term}")
         logger.debug('sending heartbeat to peers')
         for peer in self.peers:
@@ -179,11 +178,13 @@ class Election:
         if reply:
             follower_cid = reply['commit_id']
             if follower_cid < self.store.commit_id:
-                command_chunks = cfg.chunks(list(self.store.log)[follower_cid:], 4)
+                command_chunks = cfg.chunks(
+                    list(self.store.log)[follower_cid:], 4)
                 for chunk in command_chunks:
-                # while reply["commit_id"] < self.store.commit_id and abs(i) <= len(self.store.log):
+                    # while reply["commit_id"] < self.store.commit_id and abs(i) <= len(self.store.log):
                     second_message.update({'payload': chunk, 'commit_id': cid})
-                    reply = self.__transport.heartbeat(follower, second_message)
+                    reply = self.__transport.heartbeat(
+                        follower, second_message)
 
     def heartbeat_handler(self, message: dict) -> tuple:
         '''
@@ -221,7 +222,7 @@ class Election:
     def handle_put(self, payload: dict) -> bool:
         '''
         Function to insert data into the database
-        
+
         :param payload: data as received from the client
         :type payload: dict
 
@@ -265,7 +266,7 @@ class Election:
         '''
         initialize the timeout loop to check for missed
         heartbeats from the leader and start the election
-        ''' 
+        '''
         try:
             logger.info('starting timeout')
             self.reset_timeout()
