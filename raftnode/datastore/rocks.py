@@ -1,5 +1,6 @@
 from json import JSONDecodeError, dumps, loads
 from os import getenv, makedirs, path
+from typing import Union
 
 import rocksdb
 
@@ -80,7 +81,7 @@ class RockStore(IDatastore):
         db = rocksdb.DB(self.database, self.__config)
         return db
 
-    def put(self, key: str, value, namespace: str):
+    def put(self, key: str, value, namespace: str) -> bool:
         '''
         insert values into rocksdb database
 
@@ -100,6 +101,7 @@ class RockStore(IDatastore):
             db = self.connect()
             key, value = self.__bytes_encode(key), self.__bytes_encode(value)
             db.put(key, value)
+            return True
         except Exception as e:
             raise e
         finally:
@@ -131,6 +133,31 @@ class RockStore(IDatastore):
             if not value:
                 return None
             return self.__bytes_decode(value)
+        except Exception as e:
+            raise e
+        finally:
+            db = None
+
+    def delete(self, key: str, namespace: str) -> Union[str, bool]:
+        '''
+        Function to delete values from database
+
+        :param key: key whose value will be deleted from
+                    the database
+        :type key: str
+
+        :param namespace: namespace to which the key belongs
+        :type namespace: str
+        '''
+        db = None
+        try:
+            self.database = namespace
+            if not path.exists(self.database):
+                return f'No namespace {namespace} found!'
+            db = self.connect()
+            key = self.__bytes_encode(key)
+            db.delete(key)
+            return True
         except Exception as e:
             raise e
         finally:

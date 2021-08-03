@@ -1,6 +1,8 @@
 import time
 from os import getenv, makedirs, path
 from threading import Lock, Thread
+from collections import deque
+import shelve
 
 from raftnode import cfg, logger
 from raftnode.datastore.memory import MemoryStore
@@ -9,13 +11,34 @@ class Store:
 
     def __init__(self, store_type: str = 'memory', data_dir: str = 'data'):
         self.commit_id = 0
-        self.log = list()
+        self.log = deque()
         self.staged = None
         self.db = self.__get_database(store_type, data_dir=data_dir)
         self.__lock = Lock()
-        self.__data_dir = getenv('DATA_DIR', './data')
-        self.__log_file = getenv('LOG_FILENAME', 'append.log')
+        self.__data_dir = getenv('DATA_DIR', data_dir)
+        self.__log_file = getenv('LOG_FILENAME', 'OrderedLog')
         self.__data_file = getenv('DATA_FILENAME', 'data.json')
+        self.__check_data_dir()
+        self.__session()
+
+    def __session(self):
+        self.f = shelve.open(path.join(self.__data_dir,self.__log_file), writeback=True)
+        try:
+            if self.f['data']:
+                self.commit_id = self.f['data'][-1]['commit_id']
+                logger.debug(f'[SHELVE LOG] commit id, {self.commit_id}')
+        except KeyError as e:
+            self.f['data'] = self.log
+            logger.debug(f'[SHELVE LOG] Initial log, {self.f["data"]}')
+    
+    def __flush(self):
+        self.f['data'].append(self.staged)
+        logger.info(f'[DATA INSERT] {self.f["data"][-1]}')
+        self.f.close()
+
+    def __check_data_dir(self):
+        if not path.exists(self.__data_dir):
+            makedirs(self.__data_dir)
 
     def __get_database(self, store_type: str, **kwargs):
         '''
@@ -40,15 +63,29 @@ class Store:
         :param message: log/commit data as received from the leader
         :type message: dict
         '''
-        action = message['action']
-        payload = message['payload']
-        if action == 'log':
-            self.staged = payload
-        elif action == 'commit':
-            namespace = payload.get('namespace', 'default')
-            if not self.staged:
+        with self.__lock:
+            action = message['action']
+            payload = message['payload']
+            if action == 'log':
                 self.staged = payload
-            self.commit(namespace)
+            elif action == 'commit':
+                if isinstance(payload, list):
+                    for command in payload:
+                # cid = message.get('commit_id', self.commit_id)
+                        namespace = command.get('namespace', 'default')
+                        delete = command.get('delete', False)
+                        leader_cid = command
+                        logger.debug(f'[OLD COMMANDS] adding command {command}')
+                        if not self.staged:
+                            self.staged = command
+                        self.commit(namespace, delete)
+                else:
+                    namespace = payload.get('namespace', 'default')
+                    delete = payload.get('delete', False)
+                    logger.debug(f'[COMMAND] {payload}')
+                    if not self.staged:
+                        self.staged = payload
+                    self.commit(namespace, delete)
         return
 
     def put(self, term: int, payload: dict, transport, majority: int) -> bool:
@@ -102,7 +139,7 @@ class Store:
             }
         self.commit(namespace)
         Thread(target=self.send_data,
-               args=(commit_message, transport,)).start()
+            args=(commit_message, transport,)).start()
         logger.info(
             "majority reached, replied to client, sending message to commit")
         return True
@@ -122,7 +159,7 @@ class Store:
         :type confirmations: list
         '''
         for i, peer in enumerate(transport.peers):
-            reply = transport.send_data(peer, message)
+            reply = transport.heartbeat(peer, message)
             if reply and confirmations:
                 confirmations[i] = True
 
@@ -141,16 +178,67 @@ class Store:
         payload.update({'value': value})
         return payload
 
-    def commit(self, namespace: str):
+    def delete(self, term: int, payload: dict, transport, majority: int):
+        namespace = payload.get('namespace', 'default')
+        with self.__lock:
+            self.staged = payload
+            waited = 0
+            log_message = {
+                'term': term,
+                'addr': transport.addr,
+                'payload': payload,
+                'action': 'log',
+                'commit_id': self.commit_id
+            }
+            log_confirmations = [False] * len(transport.peers)
+            Thread(target=self.send_data, args=(
+                log_message, transport, log_confirmations,)).start()
+
+            while sum(log_confirmations) + 1 < majority:
+                waited += 0.0005
+                time.sleep(0.0005)
+                if waited > cfg.MAX_LOG_WAIT / 1000:
+                    logger.info(
+                        f"waited {cfg.MAX_LOG_WAIT} ms, update rejected:")
+                    return False
+
+            commit_message = {
+                "term": term,
+                "addr": transport.addr,
+                "payload": payload,
+                "action": "commit",
+                "commit_id": self.commit_id
+            }
+            Thread(target=self.send_data,
+                args=(commit_message, transport,)).start()
+            self.commit(namespace, delete=True)
+        logger.info(
+            "majority reached, replied to client, sending message to commit")
+        return True
+
+    def commit(self, namespace: str, delete: bool=False, **kwargs):
         '''
         commit the message to the database after getting
-        atleast `majority + 1` conrfirmations from the 
+        atleast `majority + 1` confirmations from the 
         follower nodes
         '''
         self.commit_id += 1
-        with self.__lock:
-            self.log.append(self.staged)
-            key = self.staged['key']
-            value = self.staged['value']
+        cid = kwargs.get('commit_id', self.commit_id)
+        # with self.__lock:
+        self.staged.update({'commit_id': cid})
+        if self.staged not in self.log:
+            logger.debug(f'[APPEND LOG] {self.staged}')
+            # self.log.append(self.staged)
+            self.__flush()
+            self.__session()
+            self.log = self.f['data']
+        key = self.staged['key']
+        if delete:
+            value = self.db.delete(key=key, namespace=namespace)
             self.staged = None
-            self.db.put(key, value, namespace=namespace)
+            logger.debug(f"[DELETE COMMAND] {self.staged}")
+            return value
+        value = self.staged['value']
+        self.staged = None
+        self.db.put(key, value, namespace=namespace)
+        logger.info(f"[PUT COMMAND], {self.staged}")

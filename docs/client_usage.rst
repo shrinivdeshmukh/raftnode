@@ -1,6 +1,6 @@
-=====
-Usage
-=====
+============
+Client Usage
+============
 
 Start the RAFT cluster
 ----------------------
@@ -75,8 +75,9 @@ Let's install FastAPI and uvicorn first
         response = s.recv(1024).decode('utf-8')
         response = decode_json(response)
         s.close()
-        if not response['success']:
-            raise HTTPException(500, detail='Couldnt put items')
+        print("RESPONSE", response)
+        if not response['data']:
+            raise HTTPException(400, detail='Couldnt put items')
         return response
 
     @app.get('/get/data')
@@ -88,18 +89,49 @@ Let's install FastAPI and uvicorn first
         response = decode_json(s.recv(1024).decode('utf-8'))
         s.close()
         if not response['data']:
-            raise HTTPException(500, detail='Couldnt put items')
+            raise HTTPException(400, detail='Couldnt put items')
+        return response
+
+    @app.get('/get/peers')
+    async def get_peers():
+        message = {'type': 'peers'}
+        s = socket(AF_INET, SOCK_STREAM)
+        s.connect((host, port))
+        s.send(encode_json(message))
+        response = decode_json(s.recv(1024).decode('utf-8'))
+        s.close()
+        if not response['peers']:
+            raise HTTPException(400, detail='Couldnt get peers')
+        response['peers']
+        return response
+
+    @app.delete('/delete')
+    async def delete_data(key: str, namespace: Optional[str] = 'default'):
+        message = {'type': 'delete', 'key': key, 'namespace': namespace, 'delete': True}
+        s = socket(AF_INET, SOCK_STREAM)
+        s.connect((host, port))
+        s.send(encode_json(message))
+        response = decode_json(s.recv(1024).decode('utf-8'))
+        s.close()
+        if not response['data']:
+            raise HTTPException(400, detail='Couldnt put items')
         return response
 
     def encode_json(message):
-        message = bytes(dumps(message), encoding='utf-8')
-        return message
+        try:
+            message = bytes(dumps(message), encoding='utf-8')
+            return message
+        except Exception as e:
+            return None
 
     def decode_json(message):
-        return loads(message)
+        try:
+            return loads(message)
+        except Exception as e:
+            return None
 
     if __name__ == '__main__':
-        uvicorn.run('web:app', host='0.0.0.0', port=8000)
+        uvicorn.run('web:app', host='0.0.0.0', port=8000, debug=True)
 
 To run this:
 
@@ -116,3 +148,11 @@ You can now go to http://localhost:8000/docs to browse the OpenAPI UI
 * Let's retrieve the data we just put using the */get/data* API
 
 .. image:: ../static/get.png
+
+* To delete the data, we can use the */delete* API
+
+.. image:: ../static/delete.png
+
+* To get all the nodes in the cluster, we can use */get/peers* API
+
+.. image:: ../static/get_peers.png

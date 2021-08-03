@@ -8,7 +8,7 @@ Welcome to raftnode's documentation!
    readme
    installation
    cli
-   usage
+   client_usage
    modules
    contributing
    authors
