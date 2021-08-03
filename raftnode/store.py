@@ -18,6 +18,7 @@ class Store:
         self.__data_dir = getenv('DATA_DIR', data_dir)
         self.__log_file = getenv('LOG_FILENAME', 'OrderedLog')
         self.__data_file = getenv('DATA_FILENAME', 'data.json')
+        self.__check_data_dir()
         self.__session()
 
     def __session(self):
@@ -34,6 +35,10 @@ class Store:
         self.f['data'].append(self.staged)
         logger.info(f'[DATA INSERT] {self.f["data"][-1]}')
         self.f.close()
+
+    def __check_data_dir(self):
+        if not path.exists(self.__data_dir):
+            makedirs(self.__data_dir)
 
     def __get_database(self, store_type: str, **kwargs):
         '''
