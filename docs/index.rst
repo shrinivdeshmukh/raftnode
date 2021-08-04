@@ -8,6 +8,7 @@ Welcome to raftnode's documentation!
    readme
    installation
    cli
+   message_formats
    usage
    modules
    contributing
