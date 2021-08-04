@@ -9,7 +9,7 @@ Welcome to raftnode's documentation!
    installation
    cli
    message_formats
-   usage
+   client_usage
    modules
    contributing
    authors

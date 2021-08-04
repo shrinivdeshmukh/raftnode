@@ -16,6 +16,12 @@ class IDatastore(ABC):
         '''
 
     @abstractmethod
+    def delete(self, key: str):
+        '''
+        Implement this function to delete data from database
+        '''
+
+    @abstractmethod
     def connect(self):
         '''
         Implement this function to connect and interact

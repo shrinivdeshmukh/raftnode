@@ -1,19 +1,21 @@
 import time
 from threading import Lock, Thread
-
+from queue import Queue
 from raftnode import cfg, logger
 from raftnode.store import Store
 from raftnode.transport import Transport
 
 
 class Election:
-    def __init__(self, transport: Transport, store: Store):
+    def __init__(self, transport: Transport, store: Store, queue: Queue):
         self.timeout_thread = None
         self.status = cfg.FOLLOWER
         self.term = 0
         self.vote_count = 0
         self.store = store
         self.__transport = transport
+        self.__lock = Lock()
+        self.q = queue
         self.init_timeout()
 
     def start_election(self):
@@ -90,6 +92,7 @@ class Election:
                   False otherwise
         :rtype: bool
         '''
+        self.reset_timeout()
         if self.term < term and self.store.commit_id <= commit_id and (staged or (self.store.staged == staged)):
             self.reset_timeout()
             self.term = term
@@ -100,7 +103,14 @@ class Election:
     def increment_vote(self):
         self.vote_count += 1
         if self.vote_count >= self.majority:
-            self.status = cfg.LEADER
+            with self.__lock:
+                self.status = cfg.LEADER
+                if self.q.empty():
+                    self.q.put({'election': self})
+                else:
+                    election = self.q.get()
+                    election.update({'election': self})
+                    self.q.put(election)
             self.start_heartbeat()
 
     def start_heartbeat(self):
@@ -108,10 +118,18 @@ class Election:
         If this node is elected as the leader, start sending
         heartbeats to the follower nodes
         '''
+        # self.q.put({})
+        # self.status == cfg.LEADER
         if self.store.staged:
-            self.store.put(self.term, self.store.staged,
-                           self.__transport, self.majority)
-
+            # logger.info(f"STAGED>>>>>>>>>>>, {self.store.staged}")
+            if self.store.staged.get('delete', False):
+                self.store.delete(self.term, self.store.staged,
+                                  self.__transport, self.majority)
+            else:
+                self.store.put(self.term, self.store.staged,
+                               self.__transport, self.majority)
+        logger.info(f"I'm the leader of the pack for the term {self.term}")
+        logger.debug('sending heartbeat to peers')
         for peer in self.peers:
             Thread(target=self.send_heartbeat, args=(peer,)).start()
 
@@ -122,19 +140,24 @@ class Election:
         :param peer: address of the follower node
         :type peer: str
         '''
-        if self.store.log:
-            self.update_follower_commit(peer)
-        message = {'term': self.term, 'addr': self.__transport.addr}
-        while self.status == cfg.LEADER:
-            start = time.time()
-            reply = self.__transport.heartbeat(peer=peer, message=message)
-            if reply:
-                if reply['term'] > self.term:
-                    self.term = reply['term']
-                    self.status = cfg.FOLLOWER
-                    self.init_timeout()
-            delta = time.time() - start
-            time.sleep((cfg.HB_TIME - delta) / 1000)
+        try:
+            if self.store.log:
+                self.update_follower_commit(peer)
+            message = {'term': self.term, 'addr': self.__transport.addr}
+            while self.status == cfg.LEADER:
+                logger.debug(f'[PEER HEARTBEAT] {peer}')
+                start = time.time()
+                reply = self.__transport.heartbeat(peer=peer, message=message)
+                if reply:
+                    if reply['term'] > self.term:
+                        self.term = reply['term']
+                        self.status = cfg.FOLLOWER
+                        self.init_timeout()
+                delta = time.time() - start
+                time.sleep((cfg.HB_TIME - delta) / 1000)
+                logger.debug(f'[PEER HEARTBEAT RESPONSE] {peer} {reply}')
+        except Exception as e:
+            raise e
 
     def update_follower_commit(self, follower: str):
         '''
@@ -151,12 +174,17 @@ class Election:
             'action': 'commit',
         }
         reply = self.__transport.heartbeat(follower, first_message)
-        i = -1
+        cid = self.store.commit_id
         if reply:
-            while reply["commit_id"] < self.store.commit_id:
-                second_message.update({'payload': self.store.log[i]})
-                reply = self.__transport.heartbeat(follower, second_message)
-                i = i - 1
+            follower_cid = reply['commit_id']
+            if follower_cid < self.store.commit_id:
+                command_chunks = cfg.chunks(
+                    list(self.store.log)[follower_cid:], 4)
+                for chunk in command_chunks:
+                    # while reply["commit_id"] < self.store.commit_id and abs(i) <= len(self.store.log):
+                    second_message.update({'payload': chunk, 'commit_id': cid})
+                    reply = self.__transport.heartbeat(
+                        follower, second_message)
 
     def heartbeat_handler(self, message: dict) -> tuple:
         '''
@@ -169,28 +197,32 @@ class Election:
         :returns: term and latest commit_id of this (follower) node
         :rtype: tuple
         '''
-        term = message['term']
-        if self.term <= term:
-            self.leader = message['addr']
-            self.reset_timeout()
+        try:
+            term = message['term']
+            if self.term <= term:
+                self.leader = message['addr']
+                self.reset_timeout()
+                logger.debug(f'got heartbeat from leader {self.leader}')
+                if self.status == cfg.CANDIDATE:
+                    self.status = cfg.FOLLOWER
+                elif self.status == cfg.LEADER:
+                    self.status = cfg.FOLLOWER
+                    self.init_timeout()
 
-            if self.status == cfg.CANDIDATE:
-                self.status = cfg.FOLLOWER
-            elif self.status == cfg.LEADER:
-                self.status = cfg.FOLLOWER
-                self.init_timeout()
+                if self.term < term:
+                    self.term = term
 
-            if self.term < term:
-                self.term = term
-
-            if 'action' in message:
-                self.store.action_handler(message)
-        return self.term, self.store.commit_id
+                if 'action' in message:
+                    logger.debug(f'received command from leader {message}')
+                    self.store.action_handler(message)
+            return self.term, self.store.commit_id
+        except Exception as e:
+            raise e
 
     def handle_put(self, payload: dict) -> bool:
         '''
         Function to insert data into the database
-        
+
         :param payload: data as received from the client
         :type payload: dict
 
@@ -212,6 +244,9 @@ class Election:
         '''
         return self.store.get(payload)
 
+    def handle_delete(self, payload: dict):
+        return self.store.delete(self.term, payload, self.__transport, self.majority)
+
     def timeout_loop(self):
         '''
         if this node is not the leader, wait for the leader
@@ -231,7 +266,7 @@ class Election:
         '''
         initialize the timeout loop to check for missed
         heartbeats from the leader and start the election
-        ''' 
+        '''
         try:
             logger.info('starting timeout')
             self.reset_timeout()

@@ -1,13 +1,15 @@
 import socket
 import time
+from queue import Queue
 from json import JSONDecodeError, dumps, loads
 from threading import Lock, Thread
 
 from raftnode import cfg, logger
 
+
 class Transport:
 
-    def __init__(self, my_ip: str, timeout: int):
+    def __init__(self, my_ip: str, timeout: int, queue: Queue):
         self.host, self.port = my_ip.split(':')
         self.port = int(self.port)
         self.addr = my_ip
@@ -16,9 +18,10 @@ class Transport:
         self.server.listen()
         self.peers = list()
         self.lock = Lock()
+        self.q = queue
         Thread(target=self.ping, args=(timeout,)).start()
 
-    def serve(self, election):
+    def serve(self):
         '''
         :param election: instance of the Election class
         :type election: Election
@@ -64,10 +67,21 @@ class Transport:
             nodes along with the heartbeat. It contains the current term
             and the latest commit_id
         '''
-        self.election = election
+        self.election = self.q.get()['election']
         while True:
+            if not self.q.empty():
+                election = self.q.get()
+                if bool(election):
+                    self.election = election
+            if isinstance(self.election, dict):
+                self.election = self.election['election']
+            logger.debug(
+                f'current membership status of this node: {self.election.status}')
             client, address = self.server.accept()
-            msg = client.recv(1024).decode('utf-8')
+            try:
+                msg = client.recv(1024).decode('utf-8')
+            except ConnectionResetError as e:
+                continue
             msg = self.decode_json(msg)
             if isinstance(msg, dict):
                 msg_type = msg['type']
@@ -90,38 +104,37 @@ class Transport:
                 elif msg_type == 'ping':
                     msg.update({'is_alive': True, 'addr': self.addr})
                     client.send(self.encode_json(msg))
-                elif msg_type == 'put':
+                elif msg_type == 'peers':
                     if self.election.status == cfg.LEADER:
-                        put_response = {'type': 'put'}
-                        reply = self.election.handle_put(msg)
-                        put_response.update({'success': reply})
-                        client.send(self.encode_json(put_response))
-                    # elif self.election.status == cfg.CANDIDATE:
-                    #     reply = self.encode_json(
-                    #         {'type': 'put', 'success': False, 'message': 'Cluster unavailable, please try again in sometime'})
+                        peers_response = {'type': 'peers'}
+                        peers_response.update({'peers': self.peers})
+                        client.send(self.encode_json(peers_response))
                     else:
                         reply = self.redirect_to_leader(self.encode_json(msg))
                         client.send(bytes(reply, encoding='utf-8'))
-                elif msg_type == 'get':
-                    if self.election.status == cfg.LEADER:
-                        get_response = {'type': 'get'}
-                        reply = self.election.handle_get(msg)
-                        if not reply:
-                            reply = None
-                        get_response.update({'data': reply})
-                        client.send(self.encode_json(get_response))
-                    else:
-                        reply = self.redirect_to_leader(self.encode_json(msg))
-                        client.send(bytes(reply, encoding='utf-8'))
-
-                elif msg_type == 'data':
-                    term, commit_id = self.election.heartbeat_handler(msg)
-                    client.send(self.encode_json(
-                        {'type': 'data', 'term': term, 'commit_id': commit_id}))
+                else:
+                    reply = self.__resolve_msg(msg)
+                    if reply:
+                        client.send(self.encode_json(reply))
             else:
                 send_msg = 'hey there; from {}'.format(self.addr)
                 client.send(bytes(self.addr, encoding='utf-8'))
             client.close()
+
+    def __resolve_msg(self, msg: dict):
+        try:
+            msg_type = msg['type']
+            if self.election.status == cfg.LEADER:
+                client_response = {'type': msg_type}
+                handler = getattr(self.election, f'handle_{msg_type}')
+                reply = handler(msg)
+                client_response.update({'data': reply})
+                return client_response
+            else:
+                reply = self.redirect_to_leader(self.encode_json(msg))
+                return self.decode_json(reply)
+        except Exception as e:
+            raise e
 
     def redirect_to_leader(self, message: dict):
         '''
@@ -132,12 +145,22 @@ class Transport:
         :param message: message to send to the client
         :param type: dict
         '''
-        leader_host, leader_port = (self.election.leader).split(':')
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((leader_host, int(leader_port)))
-        s.send(message)
-        leader_reply = s.recv(1024).decode('utf-8')
-        return leader_reply
+        try:
+            logger.info(
+                f'[LEADER REDIRECT] redirecting to leader at address {self.election.leader}')
+            leader_host, leader_port = (self.election.leader).split(':')
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.connect((leader_host, int(leader_port)))
+            s.send(message)
+            leader_reply = s.recv(1024).decode('utf-8')
+            return leader_reply
+        except ConnectionRefusedError as e:
+            return {'data': 'leader unavailable'}
+        except AttributeError as e:
+            if "object has no attribute" in e.args[0]:
+                time.sleep(1)
+        except ConnectionResetError as e:
+            return {'data': 'connection reset by peer'}
 
     def __proxy_client(self, addr: str, message=None):
         if not message:
@@ -202,29 +225,35 @@ class Transport:
         :type addr: str
         '''
         i = 0
-        while i < 20:
-            try:
-                host, port = addr.split(':')
-                client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                client.connect((host, int(port)))
-                return client
-            except ConnectionRefusedError:
-                client.close()
-                time.sleep(0.002)
-                del client
-            except TimeoutError as e:
-                logger.info(f'Timeout error connecting to peer {addr}')
-                logger.info(f'Removing peer {addr} from list of peers')
+        # while i < 20:
+        try:
+            host, port = addr.split(':')
+            client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            client.connect((host, int(port)))
+            return client
+        except ConnectionRefusedError:
+            client.close()
+            time.sleep(0.002)
+            if addr in self.peers:
                 with self.lock:
                     self.peers.remove(addr)
-                client.close()
-            except Exception as e:
-                client.close()
-                raise e
-            finally:
-                i += 1
-        else:
-            return False
+            del client
+        except TimeoutError as e:
+            logger.info(f'Timeout error connecting to peer {addr}')
+            logger.info(f'Removing peer {addr} from list of peers')
+            if addr in self.peers:
+                with self.lock:
+                    self.peers.remove(addr)
+            client.close()
+        except Exception as e:
+            client.close()
+            raise e
+        # finally:
+        #     i += 1
+    # else:
+    #     with self.lock:
+    #             self.peers.remove(addr)
+    #     return False
 
     def ping(self, timeout: float):
         '''
@@ -250,18 +279,22 @@ class Transport:
 
         :param peer: address of the peer in `ip:port` format
         '''
-        client = self.reconnect(peer)
-        if not client:
-            return
-        echo_msg = self.encode_json({'type': 'ping'})
-        client.send(echo_msg)
-        echo_reply = self.decode_json(client.recv(1024).decode('utf-8'))
-        client.close()
-        if echo_reply:
-            logger.debug('ping  >>> {}'.format(echo_reply))
-            if echo_reply['is_alive']:
-                return True
-        return False
+        try:
+            client = self.reconnect(peer)
+            if not client:
+                return
+            echo_msg = self.encode_json({'type': 'ping'})
+            client.send(echo_msg)
+            echo_reply = self.decode_json(client.recv(1024).decode('utf-8'))
+            client.close()
+            if echo_reply:
+                logger.debug('ping  >>> {}'.format(echo_reply))
+                if echo_reply['is_alive']:
+                    return True
+            return False
+        except ConnectionResetError as e:
+            logger.info(f'[ECHO]lost connection to peer {peer}')
+            return None
 
     def heartbeat(self, peer: str, message: dict = None) -> dict:
         '''
@@ -278,15 +311,21 @@ class Transport:
         :returns: heartbeat message response as received from the follower
         :rtype: dict
         '''
-        client = self.reconnect(peer)
-        if not client:
-            return
-        message.update({'type': 'heartbeat'})
-        heartbeat_message = self.encode_json(message)
-        client.send(heartbeat_message)
-        heartbeat_reply = self.decode_json(client.recv(1024).decode('utf-8'))
-        client.close()
-        return heartbeat_reply
+        try:
+            client = self.reconnect(peer)
+            if not client:
+                return
+            message.update({'type': 'heartbeat'})
+            heartbeat_message = self.encode_json(message)
+            client.send(heartbeat_message)
+            heartbeat_reply = client.recv(1024).decode('utf-8')
+            if bool(heartbeat_reply):
+                heartbeat_reply = self.decode_json(heartbeat_reply)
+            client.close()
+            return heartbeat_reply
+        except ConnectionResetError as e:
+            logger.info(f'[HEARTBEAT]lost connection to peer {peer}')
+            return None
 
     def vote_request(self, peer: str, message: dict = None):
         '''
@@ -302,16 +341,20 @@ class Transport:
 
         :returns: vote response as received from the voter node
         :rtype: dict
-        ''' 
-        client = self.reconnect(peer)
-        if not client:
-            return
-        message.update({'type': 'vote_request'})
-        vote_request_message = self.encode_json(message)
-        client.send(vote_request_message)
-        vote_reply = self.decode_json(client.recv(1024).decode('utf-8'))
-        client.close()
-        return vote_reply
+        '''
+        try:
+            client = self.reconnect(peer)
+            if not client:
+                return
+            message.update({'type': 'vote_request'})
+            vote_request_message = self.encode_json(message)
+            client.send(vote_request_message)
+            vote_reply = self.decode_json(client.recv(1024).decode('utf-8'))
+            client.close()
+            return vote_reply
+        except ConnectionResetError as e:
+            logger.info(f'[VOTE REQUEST]lost connection to peer {peer}')
+            return None
 
     def send_data(self, peer=None, message: dict = None):
         '''
@@ -327,7 +370,7 @@ class Transport:
 
         :returns: vote response as received from the voter node
         :rtype: dict
-        ''' 
+        '''
         client = self.reconnect(peer)
         if not client:
             return
@@ -367,7 +410,7 @@ class Transport:
             try:
                 return loads(msg)
             except JSONDecodeError as e:
-                raise TypeError('JSON format incorrect {}'.format(msg)) from e
+                logger.exception('JSON format incorrect {}'.format(msg))
             except Exception as e:
                 raise e
         return msg
