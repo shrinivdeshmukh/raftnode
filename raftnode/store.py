@@ -123,8 +123,8 @@ class Store:
                 log_message, transport, log_confirmations,)).start()
 
             while sum(log_confirmations) + 1 < majority:
-                waited += 0.05
-                time.sleep(0.05)
+                waited += 0.0005
+                time.sleep(0.0005)
                 if waited > cfg.MAX_LOG_WAIT / 1000:
                     logger.info(
                         f"waited {cfg.MAX_LOG_WAIT} ms, update rejected:")
@@ -241,4 +241,3 @@ class Store:
         value = self.staged['value']
         self.staged = None
         self.db.put(key, value, namespace=namespace)
-        logger.info(f"[PUT COMMAND], {self.staged}")
